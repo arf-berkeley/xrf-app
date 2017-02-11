@@ -1,5 +1,3 @@
-library(shiny)
-library(ggplot2)
 library(pbapply)
 library(reshape2)
 library(TTR)
@@ -7,6 +5,8 @@ library(dplyr)
 library(shinyIncubator)
 library(data.table)
 library(ggtern)
+library(ggplot2)
+library(shiny)
 
 
 
@@ -205,7 +205,7 @@ myfiles.x = pblapply(inFile$datapath, read_csv_filename_x)
              
              
              spectral.plot <- qplot(data$Energy, data$CPS, xlab = "Energy (keV)", ylab = "Counts per Second", geom="line", colour=data$Spectrum) +
-             theme_bw()+
+             theme_light()+
              theme(legend.position="bottom") +
              geom_segment(aes(x=element$Line, xend=element$Line, y = 0, yend=intensity.norm), colour="grey50", linetype=2)  +
              scale_colour_discrete("Spectrum") +
@@ -259,6 +259,7 @@ print(plotInput())
          
  data <- myData()
  
+ 
  spectra.line.table <- spectra.line.fn(data)
  select.line.table <- datatable(spectra.line.table[, input$show_vars, drop = FALSE])
  select.line.table
@@ -279,13 +280,13 @@ print(plotInput())
 
   })
   
- spectra.line.table[input$show_vars]
+
   
   output$downloadData <- downloadHandler(
   filename = function() { paste(input$dataset, '.csv', sep=',') },
   content = function(file
   ) {
-      write.csv(fordownload, file)
+      write.csv(tableInput(), file)
   }
   )
   
@@ -317,27 +318,34 @@ print(plotInput())
   
   
   
-  regular <- qplot(PC1, PC2, data= xrf.pca.results, xlab = "Principle Component 1", ylab = "Principle Component 2", main = "Principle Components Analysis", colour=xrf.k.cluster) +
-  geom_point(size = input$spotsize, guides=FALSE) +
-  theme_bw() +
+  
+  regular <- ggplot(data= xrf.pca.results) +
+  geom_point(aes(PC1, PC2, colour=xrf.k.cluster), size = input$spotsize) +
+  scale_x_continuous("Principle Component 1") +
+  scale_y_continuous("Principle Component 2") +
+  theme_light() +
   theme(axis.text.x = element_text(size=15)) +
   theme(axis.text.y = element_text(size=15)) +
   theme(axis.title.x = element_text(size=15)) +
   theme(axis.title.y = element_text(size=15, angle=90)) +
+  theme(legend.position="none") +
   theme(plot.title=element_text(size=20)) +
   theme(legend.title=element_text(size=15)) +
   theme(legend.text=element_text(size=15)) +
   guides(colour=guide_legend(title="K-Means")) +
   scale_colour_gradientn(colours=rainbow(7))
   
-  ellipse <- qplot(PC1, PC2, data= xrf.pca.results, xlab = "Principle Component 1", ylab = "Principle Component 2", main = "Principle Components Analysis", colour=xrf.k.cluster) +
-  geom_point(size = input$spotsize, guides=FALSE) +
-  theme_bw() +
+  ellipse <- ggplot(data= xrf.pca.results)+
+  geom_point(aes(PC1, PC2, colour=xrf.k.cluster), size = input$spotsize) +
+  scale_x_continuous("Principle Component 1") +
+  scale_y_continuous("Principle Component 2") +
+  theme_light() +
   stat_ellipse(aes(PC1, PC2, colour=xrf.k.cluster, linetype=as.factor(xrf.k.cluster))) +
   theme(axis.text.x = element_text(size=15)) +
   theme(axis.text.y = element_text(size=15)) +
   theme(axis.title.x = element_text(size=15)) +
   theme(axis.title.y = element_text(size=15, angle=90)) +
+  theme(legend.position="none") +
   theme(plot.title=element_text(size=20)) +
   theme(legend.title=element_text(size=15)) +
   theme(legend.text=element_text(size=15)) +
@@ -354,10 +362,11 @@ print(plotInput())
 
   })
   
+  
   output$xrfpcaplot <- renderPlot({
       print(plotInput2())
-
-       })
+      
+  })
   
   
   output$downloadPlot2 <- downloadHandler(
@@ -368,6 +377,55 @@ print(plotInput())
   )
   
   
+  
+  pcaTableInput <- reactive({
+      
+      
+      xrf.pca.header <- input$show_vars
+      xrf.pca.frame <- spectra.line.table[input$show_vars]
+      xrf.pca.n <- length(xrf.pca.frame)
+      xrf.smalls <- xrf.pca.frame[2:xrf.pca.n]
+      
+      xrf.k <- kmeans(xrf.smalls, input$knum, iter.max=1000, nstart=15, algorithm=c("Hartigan-Wong"))
+      xrf.pca <- prcomp(xrf.smalls, scale.=FALSE)
+      xrf.scores <- as.data.frame(xrf.pca$x)
+      xrf.pca.results <- data.frame(spectra.line.table, xrf.k$cluster, xrf.scores)
+      
+      xrf.pca.header <- input$show_vars
+      xrf.pca.frame <- spectra.line.table[input$show_vars]
+      xrf.pca.n <- length(xrf.pca.frame)
+      xrf.smalls <- xrf.pca.frame[2:xrf.pca.n]
+      
+      xrf.k <- kmeans(xrf.smalls, input$knum, iter.max=1000, nstart=15, algorithm=c("Hartigan-Wong"))
+      xrf.pca <- prcomp(xrf.smalls, scale.=FALSE)
+      xrf.scores <- as.data.frame(xrf.pca$x)
+      xrf.pca.results <- data.frame(xrf.k$cluster, xrf.scores, spectra.line.table[input$show_vars])
+      names(xrf.pca.results)[names(xrf.pca.results)=="xrf.k.cluster"] <- "K-means"
+      return(xrf.pca.results)
+ 
+      
+  })
+
+
+
+output$xrfpcatable <- renderTable({
+    pcaTableInput()
+    
+})
+
+
+
+
+output$downloadPcaTable <- downloadHandler(
+filename = function() { paste(input$dataset, '.csv', sep=',') },
+content = function(file
+) {
+    write.csv(pcaTableInput(), file)
+}
+)
+
+
+
 
 
 
@@ -417,16 +475,16 @@ plotInput3a <- reactive({
  
 
 black.time.series <- qplot(Interval, SMA(Selected, input$smoothing), xlab = "Length (mm)", ylab = trendy, geom="line", data = spectra.timeseries.table) +
-geom_line(colour = "black", lwd=input$linesize, guides=FALSE) +
-theme_bw()
+geom_line(colour = "black", lwd=input$linesize) +
+theme_light()
 
 smooth.time.series <- qplot(spectra.timeseries.table$Interval, SMA(spectra.timeseries.table$Selected, input$smoothing), xlab = "Length (mm)", ylab = trendy, geom="point") +
-theme_bw() +
+theme_light() +
 stat_smooth()
 
 ramp.time.series <- qplot(Interval, SMA(Selected, input$smoothing), xlab = "Length (mm)", ylab = trendy, geom="line", data = spectra.timeseries.table) +
-geom_line(aes(colour = Selected), lwd=input$linesize, guides=FALSE) +
-theme_bw() +
+geom_line(aes(colour = Selected), lwd=input$linesize) +
+theme_light() +
 scale_colour_gradientn(colours=rainbow(7))
 
 area.time.series <- ggplot(spectra.timeseries.table, aes(Interval)) +
@@ -437,8 +495,8 @@ scale_y_continuous(trendy)
 
 
 cluster.time.series <- qplot(Interval, SMA(Selected, input$smoothing), xlab = "Length (mm)", ylab = trendy, geom="line", data = spectra.timeseries.table) +
-geom_line(aes(colour = Cluster), lwd=input$linesize, guides=FALSE) +
-theme_bw() +
+geom_line(aes(colour = Cluster), lwd=input$linesize) +
+theme_light() +
 scale_colour_gradientn(colours=rainbow(7))
 
 
@@ -527,16 +585,16 @@ observeEvent(input$timeseriesact1, {
       
       
       black.time.series <- qplot(Interval, SMA(Selected, input$smoothing), xlab = "Length (mm)", ylab = trendy, geom="line", data = spectra.timeseries.table) +
-      geom_line(colour = "black", lwd=input$linesize, guides=FALSE) +
-      theme_bw()
+      geom_line(colour = "black", lwd=input$linesize) +
+      theme_light()
       
       smooth.time.series <- qplot(spectra.timeseries.table$Interval, SMA(spectra.timeseries.table$Selected, input$smoothing), xlab = "Length (mm)", ylab = trendy, geom="point") +
-      theme_bw() +
+      theme_light() +
       stat_smooth()
       
       ramp.time.series <- qplot(Interval, SMA(Selected, input$smoothing), xlab = "Length (mm)", ylab = trendy, geom="line", data = spectra.timeseries.table) +
-      geom_line(aes(colour = Selected), lwd=input$linesize, guides=FALSE) +
-      theme_bw() +
+      geom_line(aes(colour = Selected), lwd=input$linesize) +
+      theme_light() +
       scale_colour_gradientn(colours=rainbow(7))
       
       area.time.series <- ggplot(spectra.timeseries.table, aes(Interval)) +
@@ -547,8 +605,8 @@ observeEvent(input$timeseriesact1, {
       
       
       cluster.time.series <- qplot(Interval, SMA(Selected, input$smoothing), xlab = "Length (mm)", ylab = trendy, geom="line", data = spectra.timeseries.table) +
-      geom_line(aes(colour = Cluster), lwd=input$linesize, guides=FALSE) +
-      theme_bw() +
+      geom_line(aes(colour = Cluster), lwd=input$linesize) +
+      theme_light() +
       scale_colour_gradientn(colours=rainbow(7))
       
       
@@ -637,16 +695,16 @@ observeEvent(input$timeseriesact1, {
       
       
       black.time.series <- qplot(Interval, SMA(Selected, input$smoothing), xlab = "Length (mm)", ylab = trendy, geom="line", data = spectra.timeseries.table) +
-      geom_line(colour = "black", lwd=input$linesize, guides=FALSE) +
-      theme_bw()
+      geom_line(colour = "black", lwd=input$linesize) +
+      theme_light()
       
       smooth.time.series <- qplot(spectra.timeseries.table$Interval, SMA(spectra.timeseries.table$Selected, input$smoothing), xlab = "Length (mm)", ylab = trendy, geom="point") +
-      theme_bw() +
+      theme_light() +
       stat_smooth()
       
       ramp.time.series <- qplot(Interval, SMA(Selected, input$smoothing), xlab = "Length (mm)", ylab = trendy, geom="line", data = spectra.timeseries.table) +
-      geom_line(aes(colour = Selected), lwd=input$linesize, guides=FALSE) +
-      theme_bw() +
+      geom_line(aes(colour = Selected), lwd=input$linesize) +
+      theme_light() +
       scale_colour_gradientn(colours=rainbow(7))
       
       area.time.series <- ggplot(spectra.timeseries.table, aes(Interval)) +
@@ -657,8 +715,8 @@ observeEvent(input$timeseriesact1, {
       
       
       cluster.time.series <- qplot(Interval, SMA(Selected, input$smoothing), xlab = "Length (mm)", ylab = trendy, geom="line", data = spectra.timeseries.table) +
-      geom_line(aes(colour = Cluster), lwd=input$linesize, guides=FALSE) +
-      theme_bw() +
+      geom_line(aes(colour = Cluster), lwd=input$linesize) +
+      theme_light() +
       scale_colour_gradientn(colours=rainbow(7))
       
       
@@ -745,16 +803,16 @@ observeEvent(input$timeseriesact1, {
       
       
       black.time.series <- qplot(Interval, SMA(Selected, input$smoothing), xlab = "Length (mm)", ylab = trendy, geom="line", data = spectra.timeseries.table) +
-      geom_line(colour = "black", lwd=input$linesize, guides=FALSE) +
-      theme_bw()
+      geom_line(colour = "black", lwd=input$linesize) +
+      theme_light()
       
       smooth.time.series <- qplot(spectra.timeseries.table$Interval, SMA(spectra.timeseries.table$Selected, input$smoothing), xlab = "Length (mm)", ylab = trendy, geom="point") +
-      theme_bw() +
+      theme_light() +
       stat_smooth()
       
       ramp.time.series <- qplot(Interval, SMA(Selected, input$smoothing), xlab = "Length (mm)", ylab = trendy, geom="line", data = spectra.timeseries.table) +
-      geom_line(aes(colour = Selected), lwd=input$linesize, guides=FALSE) +
-      theme_bw() +
+      geom_line(aes(colour = Selected), lwd=input$linesize) +
+      theme_light() +
       scale_colour_gradientn(colours=rainbow(7))
       
       area.time.series <- ggplot(spectra.timeseries.table, aes(Interval)) +
@@ -765,8 +823,8 @@ observeEvent(input$timeseriesact1, {
       
       
       cluster.time.series <- qplot(Interval, SMA(Selected, input$smoothing), xlab = "Length (mm)", ylab = trendy, geom="line", data = spectra.timeseries.table) +
-      geom_line(aes(colour = Cluster), lwd=input$linesize, guides=FALSE) +
-      theme_bw() +
+      geom_line(aes(colour = Cluster), lwd=input$linesize) +
+      theme_light() +
       scale_colour_gradientn(colours=rainbow(7))
       
       
@@ -857,16 +915,16 @@ observeEvent(input$timeseriesact1, {
       
       
       black.time.series <- qplot(Interval, SMA(Selected, input$smoothing), xlab = "Length (mm)", ylab = trendy, geom="line", data = spectra.timeseries.table) +
-      geom_line(colour = "black", lwd=input$linesize, guides=FALSE) +
-      theme_bw()
+      geom_line(colour = "black", lwd=input$linesize) +
+      theme_light()
       
       smooth.time.series <- qplot(spectra.timeseries.table$Interval, SMA(spectra.timeseries.table$Selected, input$smoothing), xlab = "Length (mm)", ylab = trendy, geom="point") +
-      theme_bw() +
+      theme_light() +
       stat_smooth()
       
       ramp.time.series <- qplot(Interval, SMA(Selected, input$smoothing), xlab = "Length (mm)", ylab = trendy, geom="line", data = spectra.timeseries.table) +
-      geom_line(aes(colour = Selected), lwd=input$linesize, guides=FALSE) +
-      theme_bw() +
+      geom_line(aes(colour = Selected), lwd=input$linesize) +
+      theme_light() +
       scale_colour_gradientn(colours=rainbow(7))
       
       area.time.series <- ggplot(spectra.timeseries.table, aes(Interval)) +
@@ -877,8 +935,8 @@ observeEvent(input$timeseriesact1, {
       
       
       cluster.time.series <- qplot(Interval, SMA(Selected, input$smoothing), xlab = "Length (mm)", ylab = trendy, geom="line", data = spectra.timeseries.table) +
-      geom_line(aes(colour = Cluster), lwd=input$linesize, guides=FALSE) +
-      theme_bw() +
+      geom_line(aes(colour = Cluster), lwd=input$linesize) +
+      theme_light() +
       scale_colour_gradientn(colours=rainbow(7))
       
       
@@ -952,19 +1010,19 @@ observeEvent(input$timeseriesact1, {
       
       
       black.ratio.plot <- qplot(ratio.frame[,1]/ratio.frame[,2], ratio.frame[,3]/ratio.frame[,4], xlab = ratio.names.x, ylab = ratio.names.y ) +
-      geom_point(lwd=input$spotsize2, guides=FALSE) +
-      theme_bw()
+      geom_point(lwd=input$spotsize2) +
+      theme_light()
       
       cluster.ratio.plot <- qplot(ratio.frame[,1]/ratio.frame[,2], ratio.frame[,3]/ratio.frame[,4], xlab = ratio.names.x, ylab = ratio.names.y ) +
-      geom_point(aes(colour=ratio.frame$Cluster), lwd=input$spotsize2, guides=FALSE) +
-      theme_bw() +
+      geom_point(aes(colour=ratio.frame$Cluster), lwd=input$spotsize2) +
+      theme_light() +
       scale_colour_gradientn(colours=rainbow(7)) +
       theme(legend.position="none")
       
       cluster.ratio.ellipse.plot <- qplot(ratio.frame[,1]/ratio.frame[,2], ratio.frame[,3]/ratio.frame[,4], xlab = ratio.names.x, ylab = ratio.names.y ) +
       stat_ellipse(aes(ratio.frame[,1]/ratio.frame[,2], ratio.frame[,3]/ratio.frame[,4], colour=ratio.frame$Cluster, linetype=as.factor(ratio.frame$Cluster))) +
-      geom_point(aes(colour=ratio.frame$Cluster), lwd=input$spotsize2, guides=FALSE) +
-      theme_bw() +
+      geom_point(aes(colour=ratio.frame$Cluster), lwd=input$spotsize2) +
+      theme_light() +
       scale_colour_gradientn(colours=rainbow(7)) +
       theme(legend.position="none")+
       guides(linetype=FALSE)
@@ -1020,24 +1078,24 @@ plotInput5 <- reactive({
     
     ternaryplot1 <- ggtern(data=axis.frame, aes_string(x = colnames(axis.frame)[1], y = colnames(axis.frame)[2], z = colnames(axis.frame)[3])) +
     geom_point() +
-    theme_bw()
+    theme_light()
     
     ternaryplot2 <- ggtern(data=axis.frame, aes_string(x = colnames(axis.frame)[1], y = colnames(axis.frame)[2], z = colnames(axis.frame)[3])) +
     geom_density_tern() +
     geom_point() +
-    theme_bw()
+    theme_light()
     
     ternaryplotcluster <- ggtern(data=axis.frame, aes_string(x = colnames(axis.frame)[1], y = colnames(axis.frame)[2], z = colnames(axis.frame)[3])) +
     geom_point(aes_string(colour = colnames(axis.frame)[4])) +
     scale_colour_gradientn(colours=rainbow(7)) +
     theme(legend.position="none") +
-    theme_bw()
+    theme_light()
     
     ternaryplotclusterellipse <- ggtern(data=axis.frame, aes_string(x = colnames(axis.frame)[1], y = colnames(axis.frame)[2], z = colnames(axis.frame)[3])) +
     geom_density_tern() +
     geom_point(aes_string(colour = colnames(axis.frame)[4])) +
     scale_colour_gradientn(colours=rainbow(7)) +
-    theme_bw()
+    theme_light()
 
     if (input$ternarycolour == "Black" && input$terndensityplot==FALSE) {
         ternaryplot1

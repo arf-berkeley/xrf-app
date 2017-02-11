@@ -1,11 +1,12 @@
-library(shiny)
 library(DT)
 library(dplyr)
 library(shinyIncubator)
+library(shinythemes)
+library(shiny)
 
 
 
-shinyUI(navbarPage("XRF", id="nav",
+shinyUI(navbarPage("XRF", id="nav", theme = shinytheme("flatly"),
 tabPanel("Spectrum",
 div(class="outer",
 headerPanel("X-Ray Fluorescence Spectrum Viewer"),
@@ -145,7 +146,7 @@ downloadButton('downloadData', "Table"),
 tags$hr(),
 
 conditionalPanel(
-'input.dataset === spectra.line.table',
+condition='input.dataset === spectra.line.table',
 checkboxGroupInput('show_vars', 'Elemental lines to show:',
 names(spectra.line.table), selected = standard)
 )),
@@ -184,7 +185,9 @@ checkboxInput('elipseplot1', "Elipse"),
 tags$hr(),
 
 
-downloadButton('downloadPlot2', "Plot")
+downloadButton('downloadPlot2', "Plot"),
+downloadButton('downloadPcaTable', "Results")
+
 ),
 
 
